@@ -1,7 +1,7 @@
 import numpy as np
 import pickle
-import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# import os
+# os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 from keras.datasets import mnist
 import matplotlib.pyplot as plt
 

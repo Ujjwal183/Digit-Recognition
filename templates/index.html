@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digit Recognition</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Digit Recognition</h1>
+
+        <div class="main-content">
+            <!-- ROI Section (Left) -->
+            <div class="section roi-section">
+                <h3>ROI</h3>
+                <div class="roi-container">
+                    <div class="roi-box">
+                        <img id="roiImage" src="" alt="ROI Preview" style="display: none;">
+                        <div class="roi-placeholder">
+                            <span>ROI Preview</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="arrow-container">
+                    <div class="arrow-right"></div>
+                </div>
+            </div>
+
+            <!-- Camera Section (Center) -->
+            <div class="section camera-section">
+                <div class="camera-container">
+                    <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Camera Feed" />
+                    <div class="camera-overlay">
+                        <div class="roi-rectangle"></div>
+                    </div>
+                </div>
+
+                <div class="camera-controls">
+                    <button id="toggleInference" class="btn btn-primary">Start Inference</button>
+                    <div class="threshold-control">
+                        <label for="thresholdSlider">Threshold: <span id="thresholdValue">100</span></label>
+                        <input type="range" id="thresholdSlider" min="0" max="255" value="100">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output Section (Right) -->
+            <div class="section output-section">
+                <div class="arrow-container">
+                    <div class="arrow-right"></div>
+                </div>
+                <h3>Output</h3>
+                <div class="output-box">
+                    <div class="prediction-result">
+                        <div class="digit-display" id="digitDisplay">?</div>
+                        <div class="confidence-display" id="confidenceDisplay">0%</div>
+                    </div>
+                    <div class="status-message" id="statusMessage">Click to start inference</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <h4>Instructions:</h4>
+            <ul>
+                <li>Click "Start Inference" to begin digit recognition</li>
+                <li>Hold a digit in front of the camera within the green ROI rectangle</li>
+                <li>Adjust the threshold slider to improve digit detection</li>
+                <li>The ROI preview shows the processed region</li>
+                <li>Predicted digit and confidence appear in the Output section</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let inferenceActive = false;
+
+        // Toggle inference
+        document.getElementById('toggleInference').addEventListener('click', function() {
+            fetch('/toggle_inference', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                inferenceActive = data.inference_active;
+                const button = document.getElementById('toggleInference');
+                if (inferenceActive) {
+                    button.textContent = 'Stop Inference';
+                    button.className = 'btn btn-danger';
+                } else {
+                    button.textContent = 'Start Inference';
+                    button.className = 'btn btn-primary';
+                }
+                document.getElementById('statusMessage').textContent = data.status;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+
+        // Threshold slider
+        const thresholdSlider = document.getElementById('thresholdSlider');
+        const thresholdValue = document.getElementById('thresholdValue');
+
+        thresholdSlider.addEventListener('input', function() {
+            const threshold = this.value;
+            thresholdValue.textContent = threshold;
+
+            fetch('/set_threshold', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    threshold: parseInt(threshold)
+                })
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+
+        // Update ROI and prediction periodically
+        function updateDisplay() {
+            // Update ROI image
+            fetch('/get_roi')
+                .then(response => response.json())
+                .then(data => {
+                    const roiImage = document.getElementById('roiImage');
+                    const placeholder = document.querySelector('.roi-placeholder');
+
+                    if (data.roi_image) {
+                        roiImage.src = data.roi_image;
+                        roiImage.style.display = 'block';
+                        placeholder.style.display = 'none';
+                    } else {
+                        roiImage.style.display = 'none';
+                        placeholder.style.display = 'flex';
+                    }
+                })
+                .catch(error => {
+                    console.error('ROI Error:', error);
+                });
+
+            // Update prediction
+            fetch('/get_prediction')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('digitDisplay').textContent = data.digit;
+                    document.getElementById('confidenceDisplay').textContent = data.confidence + '%';
+                    document.getElementById('statusMessage').textContent = data.status;
+                })
+                .catch(error => {
+                    console.error('Prediction Error:', error);
+                });
+        }
+
+        // Start updating display
+        setInterval(updateDisplay, 200); // Update every 200ms
+
+        // Initial update
+        updateDisplay();
+
+        // Handle video feed errors
+        document.getElementById('videoFeed').addEventListener('error', function() {
+            console.error('Video feed error');
+            this.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQwIiBoZWlnaHQ9IjQ4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzMzMyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkNhbWVyYSBOb3QgQXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==';
+        });
+    </script>
+</body>
+</html>
